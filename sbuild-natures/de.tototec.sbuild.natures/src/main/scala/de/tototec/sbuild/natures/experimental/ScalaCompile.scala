@@ -4,8 +4,7 @@ import de.tototec.sbuild._
 import de.tototec.sbuild.TargetRefs._
 import de.tototec.sbuild.ant.tasks._
 
-trait ScalaSourcesConfig {
-  def scalaSources_trigger: TargetRefs = TargetRefs()
+trait ScalaSourcesConfig extends ProjectConfig {
   def scalaSources_sources: Seq[String] = Seq("src/main/scala", "src/main/java")
   def scalaSources_encoding: String = "UTF-8"
 }
@@ -13,14 +12,16 @@ trait ScalaSourcesConfig {
 trait ScalaCompileConfig extends ScalaSourcesConfig with ClassesDirConfig with OutputDirConfig with ProjectConfig {
   def scalaCompile_targetName: String = "compileScala"
   def scalaCompile_outputDir: String = classesDir
-  def scalaCompile_dependsOn: TargetRefs = TargetRefs()
-  def scalaCompile_extraSources: Seq[String] = Seq()
+  def scalaCompile_sources: TargetRefs = scalaSources_sources.map { dir => TargetRef("scan:" + dir) }
+  def scalaCompile_classpath: TargetRefs = "compileCp"
+  def scalaCompile_extraDependsOn: TargetRefs = TargetRefs()
   def scalaCompile_debugInfo: String = "vars"
   def scalaCompile_target: Option[String] = None
   def scalaCompile_deprecation: Boolean = true
   def scalaCompile_uncecked: Boolean = true
-  def scalaCompile_classpath: TargetRefs = TargetRefs()
+  def scalaCompile_fork: Boolean = true
   def scalaCompile_scalaVersion: Option[String] = None
+  def scalaCompile_customizeScalac: addons.scala.Scalac => Unit = (customizer) => ()
   def scalaCompile_compilerClasspath: TargetRefs = {
 
     val Scala27 = """(2\.7\..*)""".r
@@ -38,12 +39,8 @@ trait ScalaCompileConfig extends ScalaSourcesConfig with ClassesDirConfig with O
         case Scala27(_) | Scala28(_) | Scala29(_) =>
           s"mvn:org.scala-lang:scala-library:${scalaVersion}" ~
             s"mvn:org.scala-lang:scala-compiler:${scalaVersion}"
-        case Scala210(v) =>
-          s"mvn:org.scala-lang:scala-library:${scalaVersion}" ~
-            s"mvn:org.scala-lang:scala-compiler:${scalaVersion}" ~
-            s"mvn:org.scala-lang:scala-reflect:${scalaVersion}"
-        case Scala211(v) =>
-          // not exactly sure about future compiler classpath and sources
+        case Scala210(_) | Scala211(_) =>
+          // not exactly sure about 2.11 and future compiler classpath and sources
           s"mvn:org.scala-lang:scala-library:${scalaVersion}" ~
             s"mvn:org.scala-lang:scala-compiler:${scalaVersion}" ~
             s"mvn:org.scala-lang:scala-reflect:${scalaVersion}"
@@ -54,6 +51,7 @@ trait ScalaCompileConfig extends ScalaSourcesConfig with ClassesDirConfig with O
       }
     }
   }
+  def scalaCompile_targetIsCacheable: Boolean = true
 }
 
 trait ScalaCompileNature extends Nature { this: ScalaCompileConfig =>
@@ -62,31 +60,31 @@ trait ScalaCompileNature extends Nature { this: ScalaCompileConfig =>
 
     val compilerClasspath = scalaCompile_compilerClasspath
 
-    super.createTargets ++
-      Seq(
-        Target("phony:" + scalaCompile_targetName) dependsOn
-          compilerClasspath ~ scalaCompile_classpath ~ scalaCompile_dependsOn exec {
-            ctx: TargetContext =>
+    val target = Target("phony:" + scalaCompile_targetName) dependsOn
+      compilerClasspath ~
+      scalaCompile_extraDependsOn ~
+      scalaCompile_classpath ~
+      scalaCompile_sources exec {
+        ctx: TargetContext =>
 
-              val sources = Pathes(scalaSources_sources ++ scalaCompile_extraSources)
+          val scalac = new addons.scala.Scalac(
+            target = scalaCompile_target.getOrElse(null),
+            encoding = scalaSources_encoding,
+            deprecation = scalaCompile_deprecation,
+            unchecked = scalaCompile_uncecked,
+            debugInfo = scalaCompile_debugInfo,
+            fork = scalaCompile_fork,
+            destDir = Path(scalaCompile_outputDir),
+            sources = scalaCompile_sources.files,
+            compilerClasspath = compilerClasspath.files,
+            classpath = scalaCompile_classpath.files
+          )
+          scalaCompile_customizeScalac(scalac)
+          scalac.execute
+      }
 
-              IfNotUpToDate(sources ++ ctx.fileDependencies, Path(outputDir), ctx) {
-                AntMkdir(dir = Path(scalaCompile_outputDir))
-                addons.scala.Scalac(
-                  target = scalaCompile_target.getOrElse(null),
-                  encoding = scalaSources_encoding,
-                  deprecation = scalaCompile_deprecation,
-                  unchecked = scalaCompile_uncecked,
-                  debugInfo = scalaCompile_debugInfo,
-                  fork = true,
-                  destDir = Path(scalaCompile_outputDir),
-                  srcDirs = sources,
-                  compilerClasspath = compilerClasspath.files,
-                  classpath = scalaCompile_classpath.files
-                )
-              }
+    if (scalaCompile_targetIsCacheable) target.cacheable
 
-          }
-      )
+    super.createTargets ++ Seq(target)
   }
 }

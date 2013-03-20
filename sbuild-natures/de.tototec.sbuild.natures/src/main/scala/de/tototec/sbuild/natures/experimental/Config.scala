@@ -2,8 +2,11 @@ package de.tototec.sbuild.natures.experimental
 
 import de.tototec.sbuild.Project
 
+/**
+ * Base trait containing the project.
+ */
 trait ProjectConfig {
-  implicit val project: Project
+  implicit def project: Project
 }
 
 /**
@@ -20,6 +23,10 @@ trait OutputDirConfig {
 
 trait ClassesDirConfig extends OutputDirConfig {
   def classesDir: String = outputDir + "/classes"
+}
+
+trait TestClassesDirConfig extends OutputDirConfig {
+  def testClassesDir: String = outputDir + "/test-classes"
 }
 
 /**
