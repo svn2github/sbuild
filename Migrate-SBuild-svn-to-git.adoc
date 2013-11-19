@@ -1,0 +1,94 @@
+= Migration of SBuild from Subversion (svn) to git
+
+== Get a local copy of the subversion repository.
+
+Here, we copy it into the directory svn-repo-sbuild.
+
+----
+scp -r $SSHSERVER}:/path/to/sbuild/repo svn-repo-sbuild
+----
+
+== Extract a list of authors
+
+----
+cat > rules/id.map << EOF
+lefou Tobias Roeser <le.petit.fou@web.de>
+TobiasRoeser Tobias Roeser <le.petit.fou@web.de>
+TobiasLahn Tobias Lahn <tobias.lahn@tototec.de>
+EOF
+----
+
+== Inspect all pathes in the repository
+
+http://git.goodpoint.de/?p=svneverever.git;a=summary
+
+----
+svneverever svn-repo-sbuild
+----
+
+== Create a rule set to create the sbuild core git repo
+
+----
+cat > rules/sbuild.rules << EOF
+# Repos
+
+create repository new-sbuild-git
+end repository
+
+# Rules
+# - empty matched will be excluded
+
+# Exclude binary release
+match /releases/
+end match
+
+# Exclude Eclipse Plugin
+match /trunk/sbuild-eclipse-plugin/
+end match
+
+#match /trunk/sbuild/de.tototec.sbuild.addons.aether/
+#end match
+
+#match /trunk/sbuild/de.tototec.sbuild.eclipse.plugin/
+#end match
+
+#match /trunk/sbuild/de.tototec.sbuild.experimental/
+#end match
+
+#match /trunk/sbuild/de.tototec.sbuild.natures/
+#end match
+
+# Exclude Natures
+match /trunk/sbuild-natures/
+end match
+
+# Exclude files in top level
+match /trunk/SBuild.scala
+end match
+
+match /trunk/README
+end match
+
+match /branches/plugin-concept/
+end match
+
+match /tags/sbuild-0.([^/]+)/
+  repository sbuild
+  branch refs/tags/0.\1
+end match
+
+match /trunk/sbuild/
+  repository sbuild
+  branch master
+end match
+
+EOF
+----
+
+== Run the conversion
+
+http://gitorious.org/svn2git/svn2git
+
+----
+svn2git --identity-map rules/id.map --rules rules/sbuild.rules
+----
