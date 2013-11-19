@@ -4,17 +4,22 @@ import de.tototec.sbuild.ant.tasks._
 import de.tototec.sbuild.TargetRefs._
 
 @version("0.4.0")
-@include("../SBuildConfig.scala")
 @classpath("mvn:org.apache.ant:ant:1.8.4")
 class SBuild(implicit _project: Project) {
 
-  import SBuildConfig.{ sbuildVersion, compilerPath, scalaVersion }
-
   val namespace = "de.tototec.sbuild.addons.aether"
+  val version = "0.0.1"
 
+  val sbuildVersion = "0.6.0.9003"
+  val scalaVersion = "2.10.3"
   val aetherJar = s"target/${namespace}-${sbuildVersion}.jar"
   val aetherImplJar = s"target/${namespace}.impl-${sbuildVersion}.jar"
   val sourcesZip = s"target/${namespace}-${sbuildVersion}-sources.jar"
+  val aetherPluginJar = s"target/${namespace}-plugin-${sbuildVersion}.jar"
+
+  val scalaCompiler = s"mvn:org.scala-lang:scala-compiler:$scalaVersion" ~
+    s"mvn:org.scala-lang:scala-library:$scalaVersion" ~
+    s"mvn:org.scala-lang:scala-reflect:$scalaVersion"
 
   val aetherVersion = "0.9.0.M2"
   val wagonVersion = "2.4"
@@ -53,7 +58,7 @@ class SBuild(implicit _project: Project) {
 
   val compileCp =
     s"mvn:org.scala-lang:scala-library:${scalaVersion}" ~
-      s"../de.tototec.sbuild/target/de.tototec.sbuild-${sbuildVersion}.jar" ~
+      s"../../sbuild/de.tototec.sbuild/target/de.tototec.sbuild-${sbuildVersion}.jar" ~
       aetherCp
 
   ExportDependencies("eclipse.classpath", compileCp)
@@ -64,7 +69,7 @@ class SBuild(implicit _project: Project) {
     AntDelete(dir = Path("target"))
   }
 
-  val versionScala = Target("target/generated-scala/Version.scala") dependsOn _project.projectFile ~ Path("../SBuildConfig.scala") exec { ctx: TargetContext =>
+  val versionScala = Target("target/generated-scala/Version.scala") dependsOn _project.projectFile exec { ctx: TargetContext =>
     AntMkdir(dir = ctx.targetFile.get.getParentFile)
     AntEcho(file = ctx.targetFile.get, message = s"""|// GENERATED
       |package ${namespace}
@@ -83,10 +88,10 @@ class SBuild(implicit _project: Project) {
   val generatedScala = Target("scan:target/generated-scala") dependsOn versionScala
   val sources = Target("phony:sources") dependsOn "scan:src/main/scala" ~ generatedScala
 
-  Target("phony:compile").cacheable dependsOn SBuildConfig.compilerPath ~ compileCp ~ sources exec {
+  Target("phony:compile").cacheable dependsOn scalaCompiler ~ compileCp ~ sources exec {
     val output = "target/classes"
     addons.scala.Scalac(
-      compilerClasspath = compilerPath.files,
+      compilerClasspath = scalaCompiler.files,
       classpath = compileCp.files,
       sources = sources.files,
       destDir = Path(output),
@@ -102,9 +107,9 @@ class SBuild(implicit _project: Project) {
     ))
   }
 
-  Target("phony:scaladoc").cacheable dependsOn compilerPath ~ compileCp ~ sources exec {
+  Target("phony:scaladoc").cacheable dependsOn scalaCompiler ~ compileCp ~ sources exec {
     addons.scala.Scaladoc(
-      scaladocClasspath = compilerPath.files,
+      scaladocClasspath = scalaCompiler.files,
       classpath = compileCp.files,
       sources = sources.files,
       destDir = Path("target/scaladoc"),
@@ -136,5 +141,53 @@ class SBuild(implicit _project: Project) {
         fileSet = AntFileSet(file = Path("LICENSE.txt"))
       )
     }
+
+  Target(aetherPluginJar) dependsOn "compile" ~ "LICENSE.txt" exec { ctx: TargetContext =>
+    AntJar(
+      destFile = ctx.targetFile.get,
+      baseDir = Path("target/classes"),
+      fileSet = AntFileSet(file = Path("LICENSE.txt")),
+      manifestEntries = Map(
+        "SBuild-ExportPackage" -> "de.tototec.sbuild.addons.aether",
+        "SBuild-Plugin" -> """de.tototec.sbuild.addons.aether.Aether=de.tototec.sbuild.addons.aether.AetherPlugin,
+                              de.tototec.sbuild.addons.aether.AetherContainer=de.tototec.sbuild.addons.aether.AetherContainerPlugin""",
+        "SBuild-Classpath" -> Seq(
+          s"mvn:org.eclipse.aether:aether-api:${aetherVersion}",
+          s"mvn:org.eclipse.aether:aether-spi:${aetherVersion}",
+          s"mvn:org.eclipse.aether:aether-util:${aetherVersion}",
+          s"mvn:org.eclipse.aether:aether-impl:${aetherVersion}",
+          s"mvn:org.eclipse.aether:aether-connector-file:${aetherVersion}",
+          s"mvn:org.eclipse.aether:aether-connector-asynchttpclient:${aetherVersion}",
+          s"mvn:org.eclipse.aether:aether-connector-wagon:${aetherVersion}",
+          "mvn:io.tesla.maven:maven-aether-provider:3.1.2",
+          s"mvn:org.apache.maven.wagon:wagon-provider-api:${wagonVersion}",
+          s"mvn:org.apache.maven.wagon:wagon-http:${wagonVersion}",
+          s"mvn:org.apache.maven.wagon:wagon-file:${wagonVersion}",
+          s"mvn:org.apache.maven.wagon:wagon-ssh:${wagonVersion}",
+          "mvn:org.sonatype.maven:wagon-ahc:1.2.1",
+          s"mvn:org.apache.maven.wagon:wagon-http-shared4:${wagonVersion}",
+          s"mvn:org.codehaus.plexus:plexus-component-annotations:1.5.5",
+          s"mvn:org.apache.httpcomponents:httpclient:4.2.5",
+          s"mvn:org.apache.httpcomponents:httpcore:4.2.4",
+          "mvn:javax.inject:javax.inject:1",
+          "mvn:com.ning:async-http-client:1.6.5",
+          "mvn:io.tesla.maven:maven-model:3.1.0",
+          "mvn:io.tesla.maven:maven-model-builder:3.1.0",
+          "mvn:io.tesla.maven:maven-repository-metadata:3.1.0",
+          "mvn:org.jboss.netty:netty:3.2.5.Final",
+          "mvn:org.eclipse.sisu:org.eclipse.sisu.inject:0.0.0.M1",
+          "mvn:org.eclipse.sisu:org.eclipse.sisu.plexus:0.0.0.M1",
+          "mvn:org.codehaus.plexus:plexus-classworlds:2.4",
+          "mvn:org.codehaus.plexus:plexus-interpolation:1.16",
+          "mvn:org.codehaus.plexus:plexus-utils:2.1",
+          "mvn:org.sonatype.sisu:sisu-guava:0.9.9",
+          "mvn:org.sonatype.sisu:sisu-guice:3.1.0",
+          "mvn:org.slf4j:slf4j-api:1.7.5",
+          "mvn:org.slf4j:slf4j-simple:1.7.5"
+        ).map("raw:" + _).mkString(",")
+      )
+    )
+
+  }
 
 }

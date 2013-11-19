@@ -1,20 +1,20 @@
 package de.tototec.sbuild.addons.aether
 
-import de.tototec.sbuild.Project
-import de.tototec.sbuild.SchemeHandler.SchemeContext
-import de.tototec.sbuild.SchemeResolver
-import de.tototec.sbuild.TargetContext
-import scala.collection.JavaConverters._
-import de.tototec.sbuild.LogLevel
-import java.net.URL
-import de.tototec.sbuild.Util
+import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
-import java.io.BufferedOutputStream
+import java.net.URL
+
+import scala.collection.JavaConverters.enumerationAsScalaIteratorConverter
+
+import de.tototec.sbuild.Logger
+import de.tototec.sbuild.Project
+import de.tototec.sbuild.Util
 
 private object ClasspathUtil extends ClasspathUtil
 
 private class ClasspathUtil {
+  private[this] val log = Logger[ClasspathUtil]
 
   def extractResourceToFile(classLoader: ClassLoader, resource: String, allElements: Boolean, deleteOnVmExit: Boolean, project: Project): Seq[File] = {
 
@@ -31,7 +31,7 @@ private class ClasspathUtil {
       val outStream = new BufferedOutputStream(new FileOutputStream(tmpFile))
 
       try {
-        project.log.log(LogLevel.Debug, "About to extract classpath resource info file: " + tmpFile)
+        log.debug("About to extract classpath resource info file: " + tmpFile)
         Util.copy(resStream, outStream)
 
       } finally {
@@ -42,7 +42,7 @@ private class ClasspathUtil {
       tmpFile
     }
 
-    project.log.log(LogLevel.Debug, s"About to find ${if (allElements) "all" else "the first"} matching classpath resources: ${resource}")
+    log.debug(s"About to find ${if (allElements) "all" else "the first"} matching classpath resources: ${resource}")
     if (allElements)
       resources.asScala.toSeq.map(save(_))
     else if (resources.hasMoreElements)

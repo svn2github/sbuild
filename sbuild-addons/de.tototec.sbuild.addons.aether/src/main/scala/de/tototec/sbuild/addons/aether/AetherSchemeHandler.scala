@@ -2,7 +2,6 @@ package de.tototec.sbuild.addons.aether
 
 import java.io.File
 import java.net.URLClassLoader
-import de.tototec.sbuild.LogLevel
 import de.tototec.sbuild.MavenSupport.MavenGav
 import de.tototec.sbuild.Project
 import de.tototec.sbuild.SchemeResolver
@@ -11,8 +10,10 @@ import de.tototec.sbuild.TargetRefs
 import de.tototec.sbuild.TargetRefs.fromString
 import de.tototec.sbuild.ResolveFiles
 import de.tototec.sbuild.SchemeHandler.SchemeContext
+import de.tototec.sbuild.Logger
 
 object AetherSchemeHandler {
+  private[this] val log = Logger[AetherSchemeHandler.type]
 
   val version = InternalConstants.version
 
@@ -70,7 +71,7 @@ object AetherSchemeHandler {
                        remoteRepos: Seq[AetherSchemeHandler.Repository] = Seq(AetherSchemeHandler.CentralRepo))(implicit project: Project): AetherSchemeHandler = {
 
     val implJar = ClasspathUtil.extractResourceToFile(classOf[AetherSchemeHandler].getClassLoader, InternalConstants.aetherImplJarName, allElements = false, deleteOnVmExit = true, project)
-    project.log.log(LogLevel.Debug, "Using aether impl jar: " + implJar)
+    log.debug("Using aether impl jar: " + implJar)
 
     val classpath = implJar ++ ResolveFiles(fullAetherCp)
 
@@ -86,6 +87,8 @@ class AetherSchemeHandler(
   remoteRepos: Seq[AetherSchemeHandler.Repository] = Seq(AetherSchemeHandler.CentralRepo))(implicit project: Project)
     extends SchemeResolver {
 
+  private[this] val log = Logger[AetherSchemeHandler]
+
   private[this] val worker: AetherSchemeHandlerWorker = {
 
     val thisClass = classOf[AetherSchemeHandler]
@@ -94,7 +97,7 @@ class AetherSchemeHandler(
       case null | Seq() => thisClass.getClassLoader
       case cp =>
         val cl = new URLClassLoader(cp.map { f => f.toURI().toURL() }.toArray, thisClass.getClassLoader)
-        project.log.log(LogLevel.Debug, "Using aether classpath: " + cl.getURLs().mkString(", "))
+        log.debug("Using aether classpath: " + cl.getURLs().mkString(", "))
         cl
     }
 
@@ -116,7 +119,7 @@ class AetherSchemeHandler(
     try {
 
       val requestedDeps = schemeCtx.path.split(",").map(p => MavenGav(p.trim))
-      project.log.log(LogLevel.Debug, "About to resolve the following requested dependencies: " + requestedDeps.mkString(", "))
+      log.debug("About to resolve the following requested dependencies: " + requestedDeps.mkString(", "))
 
       val files = worker.resolve(requestedDeps)
       files.foreach { f => targetContext.attachFile(f) }
