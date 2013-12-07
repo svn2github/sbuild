@@ -28,6 +28,8 @@ svneverever svn-repo-sbuild
 
 == Create a rule set to create the sbuild core git repo
 
+See also http://techbase.kde.org/Projects/MoveToGit/UsingSvn2Git#Setting_up_your_system
+
 ----
 cat > rules/sbuild.rules << EOF
 # Repos

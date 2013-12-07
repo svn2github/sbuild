@@ -6,14 +6,9 @@ import de.tototec.sbuild.TargetRefs._
 @version("0.1.4")
 class SBuild(implicit project: Project) {
 
-  val tClean = Target("phony:clean")
-  val tAll = Target("phony:all")
+  val modules = Modules("sbuild", "sbuild-eclipse-plugin")
 
-  val modules = Seq("sbuild", "sbuild-eclipse-plugin")
-  modules.foreach { module =>
-    Module(module)
-    tClean dependsOn module + "::clean"
-    tAll dependsOn module + "::all"
-  }
+  Target("phony:clean") dependsOn modules.map(m => m("clean"))
+  Target("phony:all") dependsOn modules.map(m => m("all"))
 
 }
